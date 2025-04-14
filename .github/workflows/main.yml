@@ -84,7 +84,7 @@ jobs:
 
     - name: Update deployment.yaml with new image tag
       run: |
-        sed -i 's|us-central1-docker.pkg.dev/winter-surf-452116-n1/desafiodevops1/desafio:.*|us-central1-docker.pkg.dev/winter-surf-452116-n1/desafiodevops1/desafio:${{ env.IMAGE_TAG }}|' base-test-api/K8S/deployment.yaml
+        sed -i 's|us-central1-docker.pkg.dev/winter-surf-452116-n1/desafiodevops1/desafio:.*|us-central1-docker.pkg.dev/winter-surf-452116-n1/desafiodevops1/desafio:${{ env.IMAGE_TAG }}|' /base-test-api/K8S/deployment.yaml
 
     - name: Commit and Push Updated Deployment
       run: |
