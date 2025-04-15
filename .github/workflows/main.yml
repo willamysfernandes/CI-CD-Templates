@@ -97,9 +97,10 @@ jobs:
         cd deployment-repo
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
+        git remote set-url origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/willamysfernandes/DesafioDevops.git
         git add base-test-api/K8S/deployment.yaml
         git commit -m "Update deployment.yaml with new image tag" || echo "No changes to commit"
-        git push https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/willamysfernandes/DesafioDevops.git HEAD:main
+        git push origin HEAD:main
  
     # - name: Deploy to GKE
     #   run: |
