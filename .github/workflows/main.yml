@@ -98,7 +98,7 @@ jobs:
         git config --global user.email "github-actions@github.com"
         git add base-test-api/K8S/deployment.yaml
         git commit -m "Update deployment.yaml with new image tag"
-        git push
+        git push https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/willamysfernandes/DesafioDevops.git HEAD:main
  
     # - name: Deploy to GKE
     #   run: |
