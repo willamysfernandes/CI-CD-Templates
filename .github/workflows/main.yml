@@ -91,11 +91,15 @@ jobs:
     - name: Update deployment.yaml with new image tag
       run: |
         sed -i 's|us-central1-docker.pkg.dev/winter-surf-452116-n1/desafiodevops1/desafio:.*|us-central1-docker.pkg.dev/winter-surf-452116-n1/desafiodevops1/desafio:${{ env.IMAGE_TAG }}|' base-test-api/K8S/deployment.yaml
+    - name: Setup Git config
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
     - name: Commit and Push Updated Deployment
       run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "github-actions@github.com"
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git add base-test-api/K8S/deployment.yaml
         git commit -m "Update deployment.yaml with new image tag"
         git push https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/willamysfernandes/DesafioDevops.git HEAD:main
