@@ -125,8 +125,8 @@ jobs:
         GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
       run: |
         cd deployment-repo
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "willamysfernandes"
+        git config user.email "willamysx7@gmail.com"
 
         echo "Setting remote URL..."
         git remote set-url origin https://x-access-token:${{ env.GH_TOKEN }}@github.com/willamysfernandes/DesafioDevops.git
