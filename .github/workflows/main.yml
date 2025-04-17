@@ -29,95 +29,123 @@ on:
         required: true
       GCP_ARTIFACT_REPOSITORY:
         required: true
+      PERSONAL_ACCESS_TOKEN: # Segredo necessário para fazer push no repo de deployment
+        required: true
 
 jobs:
   build-and-push-gcp:
     name: Build and push to GCP
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
+      contents: read  # Read é suficiente para checkout inicial
+      packages: write # Necessário se você usar GitHub Packages (não essencial para push GCR)
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout repository (Código da Aplicação)
+      uses: actions/checkout@v3
 
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+    # --- Autenticação e Build/Push da Imagem (sem alterações) ---
+    - name: Authenticate to Google Cloud
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v4.3.0
-        with:
-          images: ${{ secrets.GCP_ARTIFACT_REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_ARTIFACT_REPOSITORY }}/${{ inputs.repository_name }}
-          tags: |
-            type=sha,enable=true,prefix=${{ inputs.repository_name }}-,suffix=,format=short
+    - name: Extract metadata (tags, labels) for Docker
+      id: meta
+      uses: docker/metadata-action@v4.3.0
+      with:
+        images: ${{ secrets.GCP_ARTIFACT_REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_ARTIFACT_REPOSITORY }}/${{ inputs.repository_name }}
+        tags: |
+          type=sha,enable=true,prefix=${{ inputs.repository_name }}-,suffix=,format=short
 
-      - name: Build image and push Google Cloud
-        uses: RafikFarhad/push-to-gcr-github-action@v5-rc1
-        with:
-          registry: ${{ secrets.GCP_ARTIFACT_REGISTRY }}
-          project_id: ${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_ARTIFACT_REPOSITORY }}
-          image_name: ${{ inputs.repository_name }}
-          image_tag: ${{ steps.meta.outputs.version }}
-          context: ./base-test-api
+    - name: Build image and push Google Cloud Artifact Registry
+      uses: RafikFarhad/push-to-gcr-github-action@v5-rc1 # Considere usar docker/build-push-action oficial se possível
+      with:
+        registry: ${{ secrets.GCP_ARTIFACT_REGISTRY }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_ARTIFACT_REPOSITORY }}
+        image_name: ${{ inputs.repository_name }}
+        image_tag: ${{ steps.meta.outputs.version }}
+        context: ./base-test-api # Ajuste o contexto se necessário
 
-      - name: Save Image Tag
-        run: echo "IMAGE_TAG=${{ steps.meta.outputs.version }}" >> $GITHUB_ENV
+    - name: Save Image Tag
+      run: echo "IMAGE_TAG=${{ steps.meta.outputs.version }}" >> $GITHUB_ENV
 
-      - name: Clone the repo with the deployment.yaml
-        uses: actions/checkout@v3
-        with:
-          repository: 'willamysfernandes/DesafioDevops'
-          path: 'deployment-repo'
+    # --- Checkout e Modificação do Repositório de Deployment ---
+    - name: Clone the Deployment Repository
+      uses: actions/checkout@v3
+      with:
+        repository: 'willamysfernandes/DesafioDevops'  # Repo que contém o deployment.yaml
+        path: 'deployment-repo'                      # Diretório temporário
+        # Se 'DesafioDevops' for PRIVADO, descomente a linha abaixo:
+        # token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+    # --- Autenticação e Configuração K8s (sem alterações) ---
+    - name: Authenticate to Google Cloud (para gcloud/kubectl)
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Update kube config
-        run: gcloud container clusters get-credentials ${{ secrets.GCP_CLUSTER_NAME }} --zone ${{ secrets.GCP_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
+    - name: Get GKE credentials
+      uses: google-github-actions/get-gke-credentials@v2
+      with:
+        cluster_name: ${{ secrets.GCP_CLUSTER_NAME }}
+        location: ${{ secrets.GCP_ZONE }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }} # Adicione project_id para clareza
 
-      - name: Get GKE credentials
-        uses: google-github-actions/get-gke-credentials@v2
-        with:
-          cluster_name: ${{ secrets.GCP_CLUSTER_NAME }}
-          location: ${{ secrets.GCP_ZONE }}
+    # --- Atualizar e Commitar o Deployment ---
+    - name: Update deployment.yaml with new image tag
+      id: update_yaml
+      run: |
+        DEPLOYMENT_FILE="deployment-repo/base-test-api/K8S/deployment.yaml"
+        OLD_IMAGE_PATTERN="us-central1-docker.pkg.dev/winter-surf-452116-n1/desafiodevops1/desafio:.*"
+        NEW_IMAGE="us-central1-docker.pkg.dev/winter-surf-452116-n1/desafiodevops1/desafio:${{ env.IMAGE_TAG }}"
 
-      - name: Update deployment.yaml with new image tag
-        run: |
-          sed -i 's|us-central1-docker.pkg.dev/winter-surf-452116-n1/desafiodevops1/desafio:.*|us-central1-docker.pkg.dev/winter-surf-452116-n1/desafiodevops1/desafio:${{ env.IMAGE_TAG }}|' deployment-repo/base-test-api/K8S/deployment.yaml
+        echo "Updating $DEPLOYMENT_FILE"
+        echo "Replacing pattern: $OLD_IMAGE_PATTERN"
+        echo "With new image: $NEW_IMAGE"
 
-      - name: Commit and Push Updated Deployment
-        run: |
-          # Navega até o diretório raiz do repositório (se necessário)
-          cd /home/runner/work/DesafioDevops/DesafioDevops
-          
-          # Configura o usuário do git para o commit
-          git config user.name "willamysfernandes"
-          git config user.email "willamysx7@gmail.com"
-          
-          # Configura a URL remota do repositório com o token de acesso
-          git remote set-url origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/willamysfernandes/DesafioDevops.git
-          
-          # Navega até o diretório onde o arquivo deployment.yaml está localizado
-          cd base-test-api/K8S
-          
-          # Adiciona o arquivo para commit
-          git add deployment.yaml
-          
-          # Realiza o commit com a variável IMAGE_TAG
-          git commit -m "Update deployment.yaml with image tag ${{ env.IMAGE_TAG }}" || echo "No changes to commit"
-          
-          # Realiza o push para o repositório remoto
-          git push origin HEAD:main
+        # Use um delimitador diferente (como #) se seus caminhos contêm /
+        sed -i "s#${OLD_IMAGE_PATTERN}#${NEW_IMAGE}#" "$DEPLOYMENT_FILE"
 
-      # - name: Deploy to GKE
-      #   run: |
-      #     kubectl set image deployment/${{ inputs.deployment_name }} \
-      #       ${{ inputs.container_name }}=${{ secrets.GCP_ARTIFACT_REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_ARTIFACT_REPOSITORY }}/${{ inputs.repository_name }}:$IMAGE_TAG \
-      #       -n ${{ inputs.namespace }}
+        # Verifica se o arquivo foi modificado
+        if git -C deployment-repo diff --quiet "$DEPLOYMENT_FILE"; then
+          echo "::set-output name=changed::false"
+          echo "Deployment file was not changed."
+        else
+          echo "::set-output name=changed::true"
+          echo "Deployment file updated."
+        fi
+      shell: bash
+
+    - name: Commit and Push Updated Deployment
+      # Só executa se o passo anterior detectou mudanças
+      if: steps.update_yaml.outputs.changed == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      run: |
+        cd deployment-repo
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        echo "Setting remote URL..."
+        git remote set-url origin https://x-access-token:${{ env.GH_TOKEN }}@github.com/willamysfernandes/DesafioDevops.git
+
+        echo "Adding deployment file..."
+        git add base-test-api/K8S/deployment.yaml
+
+        echo "Committing changes..."
+        # O commit só acontece se 'git add' adicionou algo
+        git commit -m "Update deployment.yaml with image tag ${{ env.IMAGE_TAG }} [CI Skip]"
+
+        echo "Pushing changes to main branch..."
+        git push origin HEAD:main # Empurra o commit atual para a branch 'main' remota
+
+        echo "Push successful."
+      shell: bash
+
+    # --- Aplicar o Deployment no GKE (Opcional, pode ser feito aqui ou em outro job/workflow) ---
+    # - name: Apply updated deployment to GKE
+    #   if: steps.update_yaml.outputs.changed == 'true' # Só aplica se foi commitado
+    #   run: |
+    #     kubectl apply -f deployment-repo/base-test-api/K8S/deployment.yaml -n ${{ inputs.namespace }}
