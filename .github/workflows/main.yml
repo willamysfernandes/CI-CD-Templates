@@ -98,8 +98,8 @@ jobs:
           cd /home/runner/work/DesafioDevops/DesafioDevops
           
           # Configura o usuário do git para o commit
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "willamysfernandes"
+          git config user.email "willamysx7@gmail.com"
           
           # Configura a URL remota do repositório com o token de acesso
           git remote set-url origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/willamysfernandes/DesafioDevops.git
