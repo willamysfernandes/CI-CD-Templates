@@ -77,8 +77,7 @@ jobs:
       with:
         repository: 'willamysfernandes/DesafioDevops'  # Repo que contém o deployment.yaml
         path: 'deployment-repo'                      # Diretório temporário
-        # Se 'DesafioDevops' for PRIVADO, descomente a linha abaixo:
-        # token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
     # --- Autenticação e Configuração K8s (sem alterações) ---
     - name: Authenticate to Google Cloud (para gcloud/kubectl)
@@ -119,30 +118,22 @@ jobs:
       shell: bash
 
     - name: Commit and Push Updated Deployment
-      # Só executa se o passo anterior detectou mudanças
       if: steps.update_yaml.outputs.changed == 'true'
-      env:
-        GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
       run: |
         cd deployment-repo
-        git config user.name "willamysfernandes"
-        git config user.email "willamysx7@gmail.com"
-
-        echo "Setting remote URL..."
-        git remote set-url origin https://x-access-token:${{ env.GH_TOKEN }}@github.com/willamysfernandes/DesafioDevops.git
+        git config user.name "github-actions"
+        git config user.email "github-actions@users.noreply.github.com"
 
         echo "Adding deployment file..."
         git add base-test-api/K8S/deployment.yaml
 
         echo "Committing changes..."
-        # O commit só acontece se 'git add' adicionou algo
         git commit -m "Update deployment.yaml with image tag ${{ env.IMAGE_TAG }} [CI Skip]"
 
-        echo "Pushing changes to main branch..."
-        git push origin HEAD:main # Empurra o commit atual para a branch 'main' remota
-
-        echo "Push successful."
+        echo "Pushing changes to current branch..."
+        git push
       shell: bash
+
 
     # --- Aplicar o Deployment no GKE (Opcional, pode ser feito aqui ou em outro job/workflow) ---
     # - name: Apply updated deployment to GKE
